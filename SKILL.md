@@ -74,9 +74,20 @@ PATCH /v1/subscribers/{id}      Content-Type: application/json
 - Раньше выглядело silent-fail из-за того что для GET использовался кэшированный дамп — на самом деле write проходил. При свежем GET `/v1/subscribers` теги отражаются мгновенно.
 - Можно добавлять произвольные теги — они создаются по требованию (BotHelp не требует предварительного создания в UI).
 
-### ⚠️ Открытый вопрос — `POST /v1/subscribers/{id}/messages`
+### ✅ Messages — разгадано 2026-05-06
 
-Body требует только ключ `content` (Content-Type `application/vnd.api+json`). Все простые варианты `{content: string}`, `{content: [string]}`, JSON:API, `{content: [{...}]}` отвергаются с одной и той же ошибкой `Expected keys 'content' only` или `Expected an array`. Точная вложенная структура `content` пока не разгадана — запросить у поддержки BotHelp пример валидного вызова.
+```
+POST /v1/subscribers/{id}/messages    Content-Type: application/vnd.api+json
+{"data": {"content": [<block>, <block>, ...]}}
+```
+
+`<block>` принимает несколько форм:
+- `"строка"` — простой текстовый блок
+- `{"type":"text", "text":"..."}` — текст с явным типом
+- `{"type":"image", "url":"https://..."}` — картинка
+- `{"message":"..."}` — альтернативный текстовый блок
+
+Несколько блоков в `content` отправляются как несколько сообщений подряд. Для кнопок и сложных вложений точная структура потребует доразведки.
 
 ### ❌ ПРИНЦИПИАЛЬНО НЕ ДОСТУПНО через API
 
