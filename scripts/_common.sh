@@ -106,9 +106,10 @@ bothelp_request() {
   bothelp_throttle
 
   # BotHelp у разных endpoints требует разное наличие/отсутствие trailing slash.
-  # Доверяем curl -L следовать 301 (Authorization header сохраняется при same-host редиректе).
+  # Используем -L --post301 --post302 --post303 чтобы curl сохранял body
+  # при редиректах 30X. Без --postN curl на 307/POST превращается в GET и теряет body.
   local url="$BOTHELP_API_BASE$path"
-  local args=(-sS -L -w '\n%{http_code}' -X "$method" "$url"
+  local args=(-sS -L --post301 --post302 --post303 -w '\n%{http_code}' -X "$method" "$url"
               -H "Authorization: Bearer $BOTHELP_ACCESS_TOKEN"
               -H "Accept: application/json")
   if [[ -n "$body" ]]; then
