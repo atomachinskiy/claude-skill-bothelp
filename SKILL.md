@@ -43,26 +43,29 @@ bash ~/.claude/skills/bothelp/scripts/bothelp-oauth-setup.sh
 - `GET /v1/funnels` — массив активных авторассылок (`[]` если нет)
 - `GET /v1/subscribers` — `{data: [...], paging: {cursor: {after: N}, next: "after=N"}}`. По 100 подписчиков на страницу. Поля subscriber: `id` + `cuid` + `userId` (три ID), email, phone, name, channelType (telegram/instagram/...), tags[], 5 utm*, prodamusProfileId, yaClientId, subscribed, createdAt. Фильтры: `?createdAtAfter=epoch`, `?after=cursor_id`, `?email=`, `?phone=`.
 
-### ✅ WRITE — частично работает (проверено JSON Patch RFC 6902)
+### ✅ WRITE — все схемы зафиксированы экспериментально
 
-`PATCH /v1/subscribers/{id}` принимает массив операций — НЕ обычный JSON merge.
+Полный реверс на живом кабинете 2026-05-06. BotHelp использует *смесь форматов* — разные методы хотят разное body:
 
-**Подтверждено работает:**
-- `op:replace path:/name value:"..."` — обновить имя ✓
-- `op:replace path:/email value:"..."` ✓
-- `op:replace path:/phone value:"..."` ✓
+| Endpoint | Метод | Body | Status |
+|---|---|---|---|
+| `/v1/subscribers/{id}` | PATCH | JSON Patch: `[{op:"replace", path:"/<field>", value:"..."}]` для name/email/phone | ✅ |
+| `/v1/subscribers/{id}/customFields` | PATCH | JSON Patch: `[{op:"replace", path:"/<key>", value:"..."}]` | ✅ |
+| `/v1/subscribers/{id}/bot` | POST | `{"botReferral": "...", "stepReferral": "..."}` (stepReferral опционален) | ✅ |
+| `/v1/subscribers/{id}/bot` | DELETE | **тоже** `{"botReferral": "..."}` (нестандартный DELETE с body!) | ✅ |
+| `/v1/subscribers/{id}/funnel` | POST | `{"funnelReferral": "..."}` | ✅ |
+| `/v1/subscribers/{id}/funnel` | DELETE | **тоже** `{"funnelReferral": "..."}` (DELETE с body) | ✅ |
 
-**Реальные тела других write-методов из OpenAPI (не верифицированы вживую — мастер-скилл их умеет, но реверс схемы может потребоваться):**
-- `POST /v1/subscribers/{id}/bot` body `{botReferral, stepReferral}` — запустить бота с шага (тело размечено в спеке)
-- `DELETE /v1/subscribers/{id}/bot` — остановить бота
-- `POST /v1/subscribers/{id}/funnel` — добавить в авторассылку
-- `DELETE /v1/subscribers/{id}/funnel` — убрать из авторассылки
-- `PATCH /v1/subscribers/{id}/customFields` — обновить кастомные поля
-- `POST /v1/subscribers/{id}/messages` — отправить индивидуальное сообщение (`application/vnd.api+json`)
+**Подтверждённые гочи:**
+- DELETE `/bot` и `/funnel` ТРЕБУЮТ body с referral — пустой DELETE возвращает `json_decode error`. Это противоречит REST-конвенции, но так работает BotHelp.
+- API возвращает `{"success": true}` даже если переданный referral не существует — нет валидации существования. Будь точен с referral.
 
-### ⚠️ ТЕГИ ПОДПИСЧИКА — точная формула не разгадана
+### ⚠️ Частично работает / требует документации BotHelp
 
-Все стандартные варианты JSON Patch на `/tags` либо возвращают «Patch instruction not recognized», либо `success:true` без реального изменения данных в `/v1/subscribers` (silent fail). До появления документированной схемы или подтверждения от поддержки BotHelp **рекомендуется использовать UI BotHelp для постановки/снятия тегов**. Чтение тегов через `/v1/subscribers` работает корректно — это полноценный канал для аналитики и сегментации.
+| Endpoint | Что узнали | Что делать |
+|---|---|---|
+| Теги через `PATCH /v1/subscribers/{id}` | `op:add path:/tags value:["tag"]` возвращает `success:true`, но в `/v1/subscribers` тег не появляется (silent fail) | Использовать UI BotHelp для тегов до выяснения. Чтение тегов работает идеально. |
+| `POST /v1/subscribers/{id}/messages` | Body требует только ключ `content` (Content-Type `application/vnd.api+json`). Все простые варианты `{content: string}`, `{content: [string]}`, JSON:API формат, `{content: [{...}]}` отвергаются с одной и той же ошибкой `Expected keys 'content' only` или `Expected an array`. | Точная вложенная структура `content` пока не разгадана. Запросить у поддержки BotHelp пример. |
 
 ### ❌ ПРИНЦИПИАЛЬНО НЕ ДОСТУПНО через API
 
