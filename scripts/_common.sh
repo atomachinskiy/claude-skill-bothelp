@@ -19,9 +19,25 @@ bothelp_die() {
 bothelp_have() { command -v "$1" >/dev/null 2>&1; }
 
 bothelp_check_deps() {
-  for dep in jq curl python3; do
-    bothelp_have "$dep" || bothelp_die "Не найден '$dep'. Установи: brew install $dep (macOS) или apt-get install $dep (Linux)."
+  bothelp_have jq   || bothelp_die "Не найден 'jq'. Установи: brew install jq (macOS) | sudo apt install jq (Linux) | https://stedolan.github.io/jq/download/ (Windows)"
+  bothelp_have curl || bothelp_die "Не найден 'curl'. На Windows уже идёт с Git Bash."
+  # Find a working Python (на Windows 'python3' часто это Microsoft Store stub).
+  for cand in python3 python python3.12 python3.11 python3.10 "py -3"; do
+    if $cand -c "import sys; sys.exit(0)" >/dev/null 2>&1; then
+      BOTHELP_PYTHON="$cand"
+      return 0
+    fi
   done
+  bothelp_die "Не найден работающий Python. На Windows скачай настоящий с https://python.org → отметь 'Add Python to PATH' → перезапусти PowerShell."
+}
+
+# Конвертация Git Bash пути (/c/Users/...) в нативный Windows (C:\Users\...)
+bothelp_native_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$1"
+  else
+    echo "$1"
+  fi
 }
 
 bothelp_load_config() {
@@ -56,9 +72,9 @@ bothelp_refresh_token() {
   token="$(printf '%s' "$body" | jq -r '.access_token // empty')"
   expires_in="$(printf '%s' "$body" | jq -r '.expires_in // 3600')"
   [[ -n "$token" ]] || bothelp_die "В ответе нет access_token: $body"
-  expires_at="$(python3 -c "import time; print(int(time.time()) + int('$expires_in'))")"
+  expires_at="$($BOTHELP_PYTHON -c "import time; print(int(time.time()) + int('$expires_in'))")"
 
-  python3 - "$ENV_FILE" "$token" "$expires_at" <<'PY'
+  $BOTHELP_PYTHON - "$ENV_FILE" "$token" "$expires_at" <<'PY'
 import sys, pathlib
 env_path, token, exp = sys.argv[1:]
 p = pathlib.Path(env_path)
@@ -78,7 +94,7 @@ PY
   chmod 600 "$ENV_FILE"
   BOTHELP_ACCESS_TOKEN="$token"
   BOTHELP_TOKEN_EXPIRES_AT="$expires_at"
-  echo "🔄 Токен обновлён (живёт до $(python3 -c "import time; print(time.strftime('%H:%M:%S', time.localtime($expires_at)))"))" >&2
+  echo "🔄 Токен обновлён (живёт до $($BOTHELP_PYTHON -c "import time; print(time.strftime('%H:%M:%S', time.localtime($expires_at)))"))" >&2
 }
 
 bothelp_ensure_token() {
@@ -91,7 +107,7 @@ bothelp_ensure_token() {
 }
 
 bothelp_throttle() {
-  python3 -c "import time; time.sleep($THROTTLE_MS/1000)"
+  $BOTHELP_PYTHON -c "import time; time.sleep($THROTTLE_MS/1000)"
 }
 
 # bothelp_request <METHOD> <path-after-base> [body-json] [content-type]
