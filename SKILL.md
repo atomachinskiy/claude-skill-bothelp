@@ -60,12 +60,23 @@ bash ~/.claude/skills/bothelp/scripts/bothelp-oauth-setup.sh
 - DELETE `/bot` и `/funnel` ТРЕБУЮТ body с referral — пустой DELETE возвращает `json_decode error`. Это противоречит REST-конвенции, но так работает BotHelp.
 - API возвращает `{"success": true}` даже если переданный referral не существует — нет валидации существования. Будь точен с referral.
 
-### ⚠️ Частично работает / требует документации BotHelp
+### ✅ Теги — теперь тоже работают (разгадано 2026-05-06)
 
-| Endpoint | Что узнали | Что делать |
-|---|---|---|
-| Теги через `PATCH /v1/subscribers/{id}` | `op:add path:/tags value:["tag"]` возвращает `success:true`, но в `/v1/subscribers` тег не появляется (silent fail) | Использовать UI BotHelp для тегов до выяснения. Чтение тегов работает идеально. |
-| `POST /v1/subscribers/{id}/messages` | Body требует только ключ `content` (Content-Type `application/vnd.api+json`). Все простые варианты `{content: string}`, `{content: [string]}`, JSON:API формат, `{content: [{...}]}` отвергаются с одной и той же ошибкой `Expected keys 'content' only` или `Expected an array`. | Точная вложенная структура `content` пока не разгадана. Запросить у поддержки BotHelp пример. |
+```
+PATCH /v1/subscribers/{id}      Content-Type: application/json
+[{"op":"add",    "path":"/tags", "value":["tag1","tag2"]}]   # добавить
+[{"op":"remove", "path":"/tags", "value":["tag1"]}]          # удалить
+```
+
+Особенности:
+- На `/tags` поддерживаются *только* `op:add` и `op:remove`. `op:replace` отвечает «Patch instruction not recognized». Чтобы перезаписать массив целиком — сначала remove нужного, потом add.
+- `value` ОБЯЗАТЕЛЬНО массив (даже на один тег).
+- Раньше выглядело silent-fail из-за того что для GET использовался кэшированный дамп — на самом деле write проходил. При свежем GET `/v1/subscribers` теги отражаются мгновенно.
+- Можно добавлять произвольные теги — они создаются по требованию (BotHelp не требует предварительного создания в UI).
+
+### ⚠️ Открытый вопрос — `POST /v1/subscribers/{id}/messages`
+
+Body требует только ключ `content` (Content-Type `application/vnd.api+json`). Все простые варианты `{content: string}`, `{content: [string]}`, JSON:API, `{content: [{...}]}` отвергаются с одной и той же ошибкой `Expected keys 'content' only` или `Expected an array`. Точная вложенная структура `content` пока не разгадана — запросить у поддержки BotHelp пример валидного вызова.
 
 ### ❌ ПРИНЦИПИАЛЬНО НЕ ДОСТУПНО через API
 
